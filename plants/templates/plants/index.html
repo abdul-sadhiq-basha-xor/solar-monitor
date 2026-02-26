@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Solar Monitor</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 600px; margin: 0 auto; text-align: center; }
+        .btn { padding: 10px 20px; margin: 10px; text-decoration: none; background: #007bff; color: white; border-radius: 5px; }
+        .btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>☀️ Solar Monitor</h1>
+        <p>Track your solar plant's performance in real-time.</p>
+        
+        {% if user.is_authenticated %}
+            <h2>Welcome back, {{ user.username }}!</h2>
+            <p><a href="{% url 'dashboard' %}" class="btn">Go to Dashboard</a></p>
+            <p><a href="{% url 'logout' %}">Logout</a></p>
+        {% else %}
+            <p>Monitor your solar installations and track energy production.</p>
+            <p>
+                <a href="{% url 'signup' %}" class="btn">Sign Up</a>
+                <a href="{% url 'login' %}" class="btn">Login</a>
+            </p>
+        {% endif %}
+    </div>
+</body>
+</html>

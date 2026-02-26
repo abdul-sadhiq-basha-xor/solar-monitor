@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ plant.name }} details</title>
+</head>
+<body>
+    <h2>{{ plant.name }} ({{ plant.location }})</h2>
+    <p>Capacity: {{ plant.capacity_kw }} kW</p>
+    <p>Latest power: {{ latest_power }} kW</p>
+    <p>Today's energy: {{ today_energy }} kWh</p>
+    <p>Monthly energy: {{ monthly_energy }} kWh</p>
+    <p>Battery: {{ battery }} %</p>
+
+    <h3>Recent readings</h3>
+    <table border="1">
+        <tr><th>Time</th><th>Power (kW)</th><th>Battery (%)</th><th>Grid Export</th></tr>
+        {% for r in readings %}
+        <tr>
+            <td>{{ r.timestamp }}</td>
+            <td>{{ r.power_kw }}</td>
+            <td>{{ r.battery_percentage }}</td>
+            <td>{{ r.grid_export_kw }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <p><a href="{% url 'plant_edit' plant.pk %}">Edit</a> | <a href="{% url 'dashboard' %}">Back</a></p>
+</body>
+</html>

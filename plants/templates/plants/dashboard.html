@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Solar Dashboard</title>
+    <style>
+        table { border-collapse: collapse; width: 60%; margin: 20px auto; }
+        th, td { border: 1px solid #333; padding: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h2 style="text-align:center;">Solar Plant Dashboard</h2>
+    <p style="text-align:center;">
+        {% if user.is_authenticated %}
+            Welcome {{ user.username }} &ndash; <a href="{% url 'logout' %}">logout</a>
+            {% if not user.is_staff %} | <a href="{% url 'plant_create' %}">Add plant</a>{% endif %}
+        {% else %}
+            <a href="{% url 'login' %}">Login</a> or <a href="{% url 'signup' %}">sign up</a>
+        {% endif %}
+    </p>
+    <table>
+        <tr>
+            <th>Plant</th>
+            <th>Latest Power (kW)</th>
+            <th>Today's Energy (kWh)</th>
+            <th>Monthly Energy (kWh)</th>
+            <th>Battery (%)</th>
+        </tr>
+        {% for plant in plants %}
+        <tr>
+            <td><a href="{% url 'plant_detail' plant.plant.pk %}">{{ plant.name }}</a></td>
+            <td>{{ plant.latest_power }}</td>
+            <td>{{ plant.today_energy }}</td>
+            <td>{{ plant.monthly_energy }}</td>
+            <td>{{ plant.battery }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
