@@ -8,4 +8,7 @@ urlpatterns = [
     path('plants/add/', views.plant_create, name='plant_create'),
     path('plants/<int:pk>/', views.plant_detail, name='plant_detail'),
     path('plants/<int:pk>/edit/', views.plant_edit, name='plant_edit'),
+    # demo celery endpoints
+    path('tasks/long/', views.start_long_task, name='start_long_task'),
+    path('tasks/status/', views.task_status, name='task_status'),
 ]

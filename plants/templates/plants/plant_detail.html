@@ -1,28 +1,177 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>{{ plant.name }} details</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ plant.name }} - Solar Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .navbar-custom {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        .header-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .stat-box {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        table {
+            margin: 0;
+        }
+        table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            padding: 15px;
+        }
+        table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        .btn-group-custom {
+            margin-top: 20px;
+        }
+        .btn-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .btn-custom:hover {
+            transform: scale(1.05);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .title {
+            color: white;
+            margin-bottom: 30px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+    </style>
 </head>
 <body>
-    <h2>{{ plant.name }} ({{ plant.location }})</h2>
-    <p>Capacity: {{ plant.capacity_kw }} kW</p>
-    <p>Latest power: {{ latest_power }} kW</p>
-    <p>Today's energy: {{ today_energy }} kWh</p>
-    <p>Monthly energy: {{ monthly_energy }} kWh</p>
-    <p>Battery: {{ battery }} %</p>
+    <nav class="navbar navbar-dark navbar-custom">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">☀️ Solar Monitor</span>
+            <a href="{% url 'dashboard' %}" class="text-white text-decoration-none">← Back to Dashboard</a>
+        </div>
+    </nav>
 
-    <h3>Recent readings</h3>
-    <table border="1">
-        <tr><th>Time</th><th>Power (kW)</th><th>Battery (%)</th><th>Grid Export</th></tr>
-        {% for r in readings %}
-        <tr>
-            <td>{{ r.timestamp }}</td>
-            <td>{{ r.power_kw }}</td>
-            <td>{{ r.battery_percentage }}</td>
-            <td>{{ r.grid_export_kw }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    <p><a href="{% url 'plant_edit' plant.pk %}">Edit</a> | <a href="{% url 'dashboard' %}">Back</a></p>
+    <div class="container mt-5">
+        <h1 class="title">{{ plant.name }}</h1>
+
+        <div class="header-card">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="stat-box">
+                        <div class="stat-value">{{ latest_power }} <span style="font-size: 0.5em;">kW</span></div>
+                        <div class="stat-label">Current Power Output</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="stat-box">
+                        <div class="stat-value">{{ battery }}<span style="font-size: 0.5em;">%</span></div>
+                        <div class="stat-label">Battery Level</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="stat-box">
+                        <div class="stat-value">{{ today_energy }} <span style="font-size: 0.5em;">kWh</span></div>
+                        <div class="stat-label">Today's Energy</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="stat-box">
+                        <div class="stat-value">{{ monthly_energy }} <span style="font-size: 0.5em;">kWh</span></div>
+                        <div class="stat-label">This Month</div>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+            <p class="text-muted mb-1"><strong>Location:</strong> {{ plant.location }}</p>
+            <p class="text-muted mb-0"><strong>Capacity:</strong> {{ plant.capacity_kw }} kW</p>
+
+            <div class="btn-group-custom">
+                <a href="{% url 'plant_edit' plant.pk %}" class="btn btn-custom me-2">✏️ Edit Plant</a>
+                <a href="{% url 'dashboard' %}" class="btn btn-secondary">← Back to Dashboard</a>
+            </div>
+        </div>
+
+        <h3 class="text-white mb-3">📊 Recent Readings</h3>
+        <div class="table-container">
+            {% if readings %}
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>⏰ Time</th>
+                            <th>⚡ Power (kW)</th>
+                            <th>🔋 Battery (%)</th>
+                            <th>🔌 Grid Export (kW)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in readings %}
+                        <tr>
+                            <td>{{ r.timestamp|date:"Y-m-d H:i" }}</td>
+                            <td><strong>{{ r.power_kw }}</strong></td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar" role="progressbar" style="width: {{ r.battery_percentage }}%; background: linear-gradient(90deg, #667eea, #764ba2);" >{{ r.battery_percentage }}%</div>
+                                </div>
+                            </td>
+                            <td>{{ r.grid_export_kw }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="alert alert-info m-3" role="alert">
+                    No readings yet. Check back later!
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

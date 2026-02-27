@@ -1,6 +1,7 @@
 import random
 from datetime import datetime
 from celery import shared_task
+from celery import current_task
 from django.utils import timezone
 from .models import SolarPlant, SolarReading
 
@@ -35,3 +36,18 @@ def simulate_solar_readings():
         )
 
     return "Simulation completed"
+
+
+@shared_task(bind=True)
+def long_running_demo(self, duration=10):
+    """Simulate a long task by sleeping, reporting progress.
+
+    `duration` is number of seconds; the task updates its state every second.
+    """
+    total = int(duration)
+    for i in range(total):
+        # simulate work
+        import time
+        time.sleep(1)
+        self.update_state(state='PROGRESS', meta={'current': i + 1, 'total': total})
+    return {'current': total, 'total': total, 'status': 'Completed'}

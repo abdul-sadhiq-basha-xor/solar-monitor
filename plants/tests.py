@@ -61,9 +61,57 @@ class PlantViewTests(TestCase):
 
 
 class TaskTests(TestCase):
+    def setUp(self):
+        # create an owner user for plant relationships
+        self.owner = User.objects.create_user('owner2', 'o2@example.com', 'pw')
+
     def test_simulate_task_creates_reading(self):
         plant = SolarPlant.objects.create(name='X', location='L', capacity_kw=1, owner=self.owner)
         from .tasks import simulate_solar_readings
         simulate_solar_readings()
         self.assertTrue(SolarReading.objects.filter(plant=plant).exists())
+
+
+from django.test import override_settings
+
+class CeleryDemoTests(TestCase):
+    @override_settings(
+        CELERY_TASK_ALWAYS_EAGER=True,
+        CELERY_TASK_EAGER_PROPAGATES=True,
+        CELERY_RESULT_BACKEND='rpc://',
+        CELERY_BROKER_URL='memory://',
+    )
+    def setUp(self):
+        self.user = User.objects.create_user('u', 'u@example.com', 'pw')
+        self.client.login(username='u', password='pw')
+
+    @override_settings(
+        CELERY_TASK_ALWAYS_EAGER=True,
+        CELERY_TASK_EAGER_PROPAGATES=True,
+        CELERY_RESULT_BACKEND='rpc://',
+        CELERY_BROKER_URL='memory://',
+    )
+    def test_start_long_task_and_status(self):
+        # start the task via view
+        resp = self.client.post(reverse('start_long_task'))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('task_id', data)
+        task_id = data['task_id']
+
+        # check status - should be PENDING or SUCCESS depending on eager timing
+        resp2 = self.client.get(reverse('task_status'), {'task_id': task_id})
+        self.assertEqual(resp2.status_code, 200)
+        status_data = resp2.json()
+        self.assertIn('status', status_data)
+        # with eager execution, task runs immediately but status could be PENDING or SUCCESS
+        self.assertIn(status_data['status'], ('PENDING', 'SUCCESS', 'PROGRESS'))
+
+    def test_status_no_backend(self):
+        # simulate a configuration with no result backend; view should return 500
+        with override_settings(CELERY_RESULT_BACKEND=None, CELERY_TASK_ALWAYS_EAGER=False):
+            task_id = 'fake'
+            resp = self.client.get(reverse('task_status'), {'task_id': task_id})
+            self.assertEqual(resp.status_code, 500)
+            self.assertIn('error', resp.json())
 

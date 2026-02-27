@@ -1,6 +1,14 @@
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render, redirect
+from django.http import JsonResponse
+from celery.result import AsyncResult
+from django.views.decorators.csrf import ensure_csrf_cookie
+import logging
+
+from .tasks import long_running_demo
+
+logger = logging.getLogger(__name__)
 
 
 def index(request):
@@ -81,6 +89,7 @@ def plant_detail(request, pk):
     return render(request, 'plants/plant_detail.html', context)
 
 
+@ensure_csrf_cookie
 @login_required
 def plant_create(request):
     """Create a new SolarPlant owned by the logged‑in user."""
@@ -91,6 +100,14 @@ def plant_create(request):
             plant.owner = request.user
             plant.save()
             return redirect('plant_detail', pk=plant.pk)
+        else:
+            # Log CSRF-related info for debugging when form submission fails
+            try:
+                posted = request.POST.get('csrfmiddlewaretoken')
+                cookie = request.COOKIES.get('csrftoken')
+                logger.warning('CSRF mismatch on plant_create POST - posted=%s cookie=%s', posted, cookie)
+            except Exception:
+                logger.exception('Error reading CSRF tokens during plant_create POST')
     else:
         form = PlantForm()
     return render(request, 'plants/plant_form.html', {'form': form})
@@ -108,3 +125,39 @@ def plant_edit(request, pk):
     else:
         form = PlantForm(instance=plant)
     return render(request, 'plants/plant_form.html', {'form': form, 'plant': plant})
+
+
+@login_required
+def start_long_task(request):
+    """Kick off the demo long-running Celery task and return task id.
+
+    Use POST for safety; GET is not allowed. The template will send a POST
+    with credentials so the session cookie is attached.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    task = long_running_demo.delay(duration=10)
+    return JsonResponse({'task_id': task.id})
+
+
+@login_required
+def task_status(request):
+    """Return JSON status for a given Celery task id (via GET param)."""
+    task_id = request.GET.get('task_id')
+    if not task_id:
+        return JsonResponse({'error': 'missing task_id'}, status=400)
+    result = AsyncResult(task_id)
+    try:
+        status = result.status
+        result_value = result.result
+    except AttributeError:
+        # backend doesn't support state retrieval
+        return JsonResponse({'error': 'result backend not configured'}, status=500)
+
+    response = {
+        'status': status,
+        'result': result_value,
+    }
+    if status == 'PROGRESS':
+        response.update(result.info or {})
+    return JsonResponse(response)

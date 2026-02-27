@@ -1,39 +1,320 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solar Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        table { border-collapse: collapse; width: 60%; margin: 20px auto; }
-        th, td { border: 1px solid #333; padding: 8px; text-align: center; }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .navbar-custom {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        .card-plant {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .card-plant:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        }
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .btn-custom:hover {
+            transform: scale(1.05);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .progress-container {
+            display: none;
+            margin-top: 15px;
+        }
+        .progress-container.active {
+            display: block;
+        }
+        #task-progress-bar {
+            height: 25px;
+        }
+        .page-title {
+            color: white;
+            margin-bottom: 30px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .welcome-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .welcome-text {
+            font-size: 1.1rem;
+            margin: 0;
+        }
+        .welcome-links a {
+            margin-left: 10px;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
-    <h2 style="text-align:center;">Solar Plant Dashboard</h2>
-    <p style="text-align:center;">
-        {% if user.is_authenticated %}
-            Welcome {{ user.username }} &ndash; <a href="{% url 'logout' %}">logout</a>
-            {% if not user.is_staff %} | <a href="{% url 'plant_create' %}">Add plant</a>{% endif %}
+    <nav class="navbar navbar-dark navbar-custom">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">☀️ Solar Monitor</span>
+            {% if user.is_authenticated %}
+                <div class="d-flex align-items-center text-white">
+                    <span class="me-3">Welcome, <strong>{{ user.username }}</strong></span>
+                    <a href="{% url 'logout' %}" class="text-white text-decoration-none">Logout</a>
+                </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <h1 class="page-title text-center">Your Solar Plants</h1>
+
+        <div class="welcome-section">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <p class="welcome-text">📊 Monitor your solar installations and track real-time energy production.</p>
+                </div>
+                <div class="col-md-4 text-end welcome-links">
+                    {% if not user.is_staff %}
+                        <a href="{% url 'plant_create' %}" class="btn btn-sm btn-custom">+ Add New Plant</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Celery Demo Section -->
+        <div class="welcome-section" style="background: #fff3cd;">
+            <h5>⚡ Test Async Task</h5>
+            <p>Try the long-running demo to see Celery in action. Task progress will persist even if you refresh!</p>
+            <button id="run-task-btn" class="btn btn-custom">Run Background Task</button>
+            <div id="task-progress-container" class="progress-container">
+                <div class="mb-2" style="font-size: 0.9rem;">
+                    <strong>Task Status:</strong> <span id="task-status-text">Starting...</span>
+                </div>
+                <div class="progress">
+                    <div id="task-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Plants Grid -->
+        {% if plants %}
+            <div class="row g-4">
+                {% for plant in plants %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card card-plant h-100">
+                        <div class="card-body">
+                            <h5 class="card-title text-decoration-none">🔌 {{ plant.name }}</h5>
+                            <p class="text-muted mb-3">{{ plant.plant.location }}</p>
+
+                            <div class="row text-center mb-4">
+                                <div class="col-6">
+                                    <div class="stat-value">{{ plant.latest_power }}<span style="font-size: 0.6em;"> kW</span></div>
+                                    <div class="stat-label">Power</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="stat-value">{{ plant.battery }}<span style="font-size: 0.6em;">%</span></div>
+                                    <div class="stat-label">Battery</div>
+                                </div>
+                            </div>
+
+                            <div class="row text-center mb-3 small">
+                                <div class="col-6">
+                                    <div style="color: #667eea; font-weight: 600;">{{ plant.today_energy }} kWh</div>
+                                    <div class="text-muted">Today</div>
+                                </div>
+                                <div class="col-6">
+                                    <div style="color: #764ba2; font-weight: 600;">{{ plant.monthly_energy }} kWh</div>
+                                    <div class="text-muted">This Month</div>
+                                </div>
+                            </div>
+
+                            <div class="progress mb-3" style="height: 6px;">
+                                <div class="progress-bar" role="progressbar" style="width: {{ plant.battery }}%; background: linear-gradient(to right, #667eea, #764ba2);"></div>
+                            </div>
+
+                            <a href="{% url 'plant_detail' plant.plant.pk %}" class="btn btn-sm btn-custom w-100">View Details</a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         {% else %}
-            <a href="{% url 'login' %}">Login</a> or <a href="{% url 'signup' %}">sign up</a>
+            <div class="alert alert-info text-center" role="alert">
+                <h5>No plants yet</h5>
+                <p>Create your first solar plant to start monitoring!</p>
+                {% if not user.is_staff %}
+                    <a href="{% url 'plant_create' %}" class="btn btn-custom">+ Add Plant</a>
+                {% endif %}
+            </div>
         {% endif %}
-    </p>
-    <table>
-        <tr>
-            <th>Plant</th>
-            <th>Latest Power (kW)</th>
-            <th>Today's Energy (kWh)</th>
-            <th>Monthly Energy (kWh)</th>
-            <th>Battery (%)</th>
-        </tr>
-        {% for plant in plants %}
-        <tr>
-            <td><a href="{% url 'plant_detail' plant.plant.pk %}">{{ plant.name }}</a></td>
-            <td>{{ plant.latest_power }}</td>
-            <td>{{ plant.today_energy }}</td>
-            <td>{{ plant.monthly_energy }}</td>
-            <td>{{ plant.battery }}</td>
-        </tr>
-        {% endfor %}
-    </table>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // localStorage persistence for task tracking
+    const STORAGE_KEY = 'current_task_id';
+    const STORAGE_START_TIME = 'task_start_time';
+    const TASK_TIMEOUT = 15000; // 15 seconds max
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.startsWith(name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function saveTaskState(taskId) {
+        localStorage.setItem(STORAGE_KEY, taskId);
+        localStorage.setItem(STORAGE_START_TIME, Date.now());
+    }
+
+    function getTaskState() {
+        return localStorage.getItem(STORAGE_KEY);
+    }
+
+    function clearTaskState() {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_START_TIME);
+    }
+
+    function pollTaskStatus(taskId) {
+        const progressContainer = document.getElementById('task-progress-container');
+        const progressBar = document.getElementById('task-progress-bar');
+        const statusText = document.getElementById('task-status-text');
+        const btn = document.getElementById('run-task-btn');
+
+        progressContainer.classList.add('active');
+        btn.disabled = true;
+
+        let pollCount = 0;
+        const maxPolls = 20; // 20 seconds max polling
+
+        const interval = setInterval(function() {
+            pollCount++;
+
+            if (pollCount > maxPolls) {
+                clearInterval(interval);
+                clearTaskState();
+                statusText.textContent = 'Task timeout';
+                btn.disabled = false;
+                return;
+            }
+
+            fetch('{% url "task_status" %}?task_id=' + taskId, { credentials: 'same-origin' })
+                .then(resp => resp.json())
+                .then(info => {
+                    if (info.status === 'PROGRESS') {
+                        const percent = (info.current / info.total) * 100;
+                        progressBar.style.width = percent + '%';
+                        progressBar.setAttribute('aria-valuenow', percent);
+                        statusText.textContent = 'Progress: ' + info.current + '/' + info.total + ' seconds';
+                    } else if (info.status === 'SUCCESS') {
+                        progressBar.style.width = '100%';
+                        progressBar.setAttribute('aria-valuenow', 100);
+                        statusText.innerHTML = '✅ Done! Task completed successfully.';
+                        clearInterval(interval);
+                        clearTaskState();
+                        btn.disabled = false;
+                        setTimeout(() => {
+                            progressContainer.classList.remove('active');
+                        }, 2000);
+                    } else {
+                        statusText.textContent = 'Status: ' + info.status;
+                        if (info.status !== 'PENDING') {
+                            clearInterval(interval);
+                            clearTaskState();
+                            btn.disabled = false;
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Poll error:', err);
+                    clearInterval(interval);
+                    clearTaskState();
+                    btn.disabled = false;
+                });
+        }, 1000);
+    }
+
+    // Check if there's a task in progress on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const savedTaskId = getTaskState();
+        const startTime = localStorage.getItem(STORAGE_START_TIME);
+
+        if (savedTaskId && startTime) {
+            const elapsed = (Date.now() - parseInt(startTime)) / 1000;
+            if (elapsed < 15) {
+                // Resume polling
+                console.log('Resuming task polling for:', savedTaskId);
+                pollTaskStatus(savedTaskId);
+            } else {
+                // Task is too old, clear it
+                clearTaskState();
+            }
+        }
+    });
+
+    // Handle button click
+    document.getElementById('run-task-btn').addEventListener('click', function() {
+        const csrftoken = getCookie('csrftoken');
+
+        fetch('{% url "start_long_task" %}', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                const taskId = data.task_id;
+                saveTaskState(taskId);
+                pollTaskStatus(taskId);
+            })
+            .catch(err => {
+                console.error('Error starting task:', err);
+                alert('Failed to start task');
+            });
+    });
+    </script>
 </body>
 </html>

@@ -17,3 +17,8 @@ class PlantForm(forms.ModelForm):
     class Meta:
         model = SolarPlant
         fields = ['name', 'location', 'capacity_kw']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'location': forms.TextInput(attrs={'class': 'form-control'}),
+            'capacity_kw': forms.NumberInput(attrs={'class': 'form-control'}),
+        }
