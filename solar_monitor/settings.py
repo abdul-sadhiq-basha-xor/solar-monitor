@@ -76,22 +76,16 @@ WSGI_APPLICATION = 'solar_monitor.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# use sqlite database for development (tests use in-memory)
-if 'test' in sys.argv:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': ':memory:',
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'solar_monitor_db',
+        'USER': 'solar_user',
+        'PASSWORD': 'solar123',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
-else:
-    # Development: use SQLite file-based database
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 
 # Password validation

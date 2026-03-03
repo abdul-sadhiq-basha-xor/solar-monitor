@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import CSV - {{ plant.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container-import {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+        .title {
+            color: #667eea;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            background-color: #f0f0ff;
+            border-color: #764ba2;
+        }
+        .upload-area.active {
+            background-color: #f0f0ff;
+            border-color: #764ba2;
+        }
+        .btn-submit {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+        .btn-submit:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            color: white;
+        }
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .progress-section {
+            margin-top: 30px;
+            display: none;
+        }
+        .progress-section.active {
+            display: block;
+        }
+        .progress-bar-default {
+            height: 25px;
+        }
+        .status-text {
+            margin: 15px 0;
+            font-size: 0.95rem;
+        }
+        .success-message {
+            color: #28a745;
+        }
+        .error-message {
+            color: #dc3545;
+        }
+        .info-text {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 15px;
+        }
+        .csv-info {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-import">
+        <h2 class="title">📊 Import Readings</h2>
+        <p style="color: #666;">Plant: <strong>{{ plant.name }}</strong></p>
+
+        <div class="csv-info">
+            <strong>CSV Format:</strong><br>
+            <small>timestamp, power_kw, battery_percentage, grid_export_kw</small><br>
+            <small>Example: 2026-02-27T10:00:00,5.5,85.0,2.0</small>
+        </div>
+
+        <form id="csv-form" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="upload-area" id="upload-area">
+                <div>📁 <strong>Click or drag CSV file here</strong></div>
+                <div style="font-size: 0.9rem; color: #999; margin-top: 10px;">Max 10 MB</div>
+                <input type="file" id="csv-file-input" name="file" accept=".csv" style="display: none;">
+            </div>
+
+            <div id="file-selected" style="margin-top: 15px; color: #667eea; font-weight: 500; display: none;">
+                ✓ <span id="selected-filename"></span>
+            </div>
+
+            <button type="submit" class="btn btn-submit" id="upload-btn">Upload & Process</button>
+        </form>
+
+        <!-- Progress Section -->
+        <div class="progress-section" id="progress-section">
+            <div class="status-text">
+                <strong>Status:</strong> <span id="status-text">Processing...</span>
+            </div>
+            
+            <div class="progress" style="height: 25px;">
+                <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" style="width: 0%; background: linear-gradient(to right, #667eea, #764ba2);"
+                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+
+            <div style="margin-top: 15px; font-size: 0.9rem;">
+                <div>Processed: <strong><span id="progress-processed">0</span>/<span id="progress-total">0</span></strong></div>
+                <div>Successes: <strong style="color: #28a745;"><span id="progress-success">0</span></strong></div>
+                <div>Errors: <strong style="color: #dc3545;"><span id="progress-errors">0</span></strong></div>
+            </div>
+
+            <button class="btn btn-secondary" style="width: 100%; margin-top: 20px;" onclick="window.location.href='{% url 'plant_detail' plant.pk %}';">Close</button>
+        </div>
+    </div>
+
+    <script>
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('csv-file-input');
+    const fileSelected = document.getElementById('file-selected');
+    const selectedFilename = document.getElementById('selected-filename');
+    const uploadForm = document.getElementById('csv-form');
+    const uploadBtn = document.getElementById('upload-btn');
+    const progressSection = document.getElementById('progress-section');
+    const progressBar = document.getElementById('progress-bar');
+    const statusText = document.getElementById('status-text');
+
+    // File selection
+    uploadArea.addEventListener('click', () => fileInput.click());
+    
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            selectedFilename.textContent = fileInput.files[0].name;
+            fileSelected.style.display = 'block';
+        }
+    });
+
+    // Drag and drop
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('active');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('active');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('active');
+        fileInput.files = e.dataTransfer.files;
+        if (fileInput.files.length > 0) {
+            selectedFilename.textContent = fileInput.files[0].name;
+            fileSelected.style.display = 'block';
+        }
+    });
+
+    // Form submission
+    uploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (!fileInput.files.length) {
+            alert('Please select a CSV file');
+            return;
+        }
+
+        uploadBtn.disabled = true;
+        const formData = new FormData(uploadForm);
+
+        try {
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                progressSection.classList.add('active');
+                uploadArea.style.display = 'none';
+                uploadForm.style.display = 'none';
+                pollProgress(data.upload_id);
+            } else {
+                alert('Upload failed: ' + (data.error || 'Unknown error'));
+                uploadBtn.disabled = false;
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+            alert('Upload failed: ' + err);
+            uploadBtn.disabled = false;
+        }
+    });
+
+    function pollProgress(uploadId) {
+        const pollInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`{% url 'import_progress' plant.pk %}?upload_id=${uploadId}`);
+                const data = await response.json();
+
+                // Update progress bar
+                progressBar.style.width = data.progress + '%';
+                progressBar.setAttribute('aria-valuenow', data.progress);
+
+                // Update stats
+                document.getElementById('progress-processed').textContent = data.rows_processed;
+                document.getElementById('progress-total').textContent = data.total_rows;
+                document.getElementById('progress-success').textContent = data.successes;
+                document.getElementById('progress-errors').textContent = data.errors;
+
+                // Update status
+                if (data.status === 'SUCCESS') {
+                    statusText.innerHTML = '✅ <strong>Complete!</strong>';
+                    statusText.className = 'success-message';
+                    clearInterval(pollInterval);
+                } else if (data.status === 'FAILED') {
+                    statusText.innerHTML = '❌ <strong>Failed</strong>';
+                    statusText.className = 'error-message';
+                    clearInterval(pollInterval);
+                } else {
+                    statusText.textContent = 'Processing... (' + data.progress + '%)';
+                }
+            } catch (err) {
+                console.error('Poll error:', err);
+            }
+        }, 1000);  // Poll every 1 second
+    }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

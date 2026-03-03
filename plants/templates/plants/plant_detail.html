@@ -133,7 +133,8 @@
 
             <div class="btn-group-custom">
                 <a href="{% url 'plant_edit' plant.pk %}" class="btn btn-custom me-2">✏️ Edit Plant</a>
-                <a href="{% url 'dashboard' %}" class="btn btn-secondary">← Back to Dashboard</a>
+                <a href="{% url 'plant_import_csv' plant.pk %}" class="btn btn-custom me-2">📊 Import CSV</a>
+                <a href="{% url 'dashboard' %}" class="btn btn-secondary">← Dashboard</a>
             </div>
         </div>
 

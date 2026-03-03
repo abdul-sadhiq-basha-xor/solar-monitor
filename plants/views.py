@@ -5,8 +5,10 @@ from django.http import JsonResponse
 from celery.result import AsyncResult
 from django.views.decorators.csrf import ensure_csrf_cookie
 import logging
+import os
+import tempfile
 
-from .tasks import long_running_demo
+from .tasks import long_running_demo, process_csv_batch
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +17,9 @@ def index(request):
     """Home page - shows signup/login for anon users, dashboard link for authenticated."""
     return render(request, 'plants/index.html')
 
-from .models import SolarPlant
+from .models import SolarPlant, SolarReading, CSVUpload, FailedTask
 from .services import SolarAnalyticsService
-from .forms import SignUpForm, PlantForm
+from .forms import SignUpForm, PlantForm, CSVImportForm
 
 
 def signup(request):
@@ -160,4 +162,80 @@ def task_status(request):
     }
     if status == 'PROGRESS':
         response.update(result.info or {})
+    return JsonResponse(response)
+
+
+@login_required
+def plant_import_csv(request, pk):
+    """Upload and process CSV file for a plant's solar readings."""
+    plant = get_object_or_404(SolarPlant, pk=pk, owner=request.user)
+    
+    if request.method == 'POST':
+        form = CSVImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            uploaded_file = request.FILES['file']
+            
+            # Save uploaded file to temp location
+            temp_dir = tempfile.gettempdir()
+            temp_file_path = os.path.join(temp_dir, f'solar_import_{plant.id}_{uploaded_file.name}')
+            
+            with open(temp_file_path, 'wb+') as f:
+                for chunk in uploaded_file.chunks():
+                    f.write(chunk)
+            
+            # Create CSVUpload record
+            csv_upload = CSVUpload.objects.create(
+                plant=plant,
+                file_name=uploaded_file.name,
+                file_path=temp_file_path,
+                status='PENDING',
+            )
+            
+            # Queue Celery task
+            task = process_csv_batch.delay(csv_upload.id)
+            csv_upload.task_id = task.id
+            csv_upload.save()
+            
+            return JsonResponse({
+                'success': True,
+                'upload_id': csv_upload.id,
+                'task_id': task.id,
+            })
+    else:
+        form = CSVImportForm()
+    
+    return render(request, 'plants/csv_import.html', {
+        'plant': plant,
+        'form': form,
+    })
+
+
+@login_required
+def import_progress(request, pk):
+    """Check progress of CSV import for a plant."""
+    upload_id = request.GET.get('upload_id')
+    if not upload_id:
+        return JsonResponse({'error': 'missing upload_id'}, status=400)
+    
+    try:
+        upload = CSVUpload.objects.get(id=upload_id, plant__owner=request.user)
+    except CSVUpload.DoesNotExist:
+        return JsonResponse({'error': 'upload not found'}, status=404)
+    
+    # Check task status
+    task_result = AsyncResult(upload.task_id)
+    
+    response = {
+        'status': upload.status,
+        'total_rows': upload.total_rows,
+        'rows_processed': upload.rows_processed,
+        'successes': upload.successes,
+        'errors': upload.errors,
+        'progress': upload.progress_percent(),
+        'task_status': task_result.status,
+    }
+    
+    if task_result.status == 'PROGRESS':
+        response.update(task_result.info or {})
+    
     return JsonResponse(response)
