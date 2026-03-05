@@ -1,0 +1,2 @@
+timestamp,power_kw,battery_percentage,grid_export_kw
+invalid-date,100,50,30

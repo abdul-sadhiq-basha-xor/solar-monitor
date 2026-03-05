@@ -144,7 +144,8 @@
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>⏰ Time</th>
+                            <th>⏰ Beat Time</th>
+                            <th>🕐 Worker Time</th>
                             <th>⚡ Power (kW)</th>
                             <th>🔋 Battery (%)</th>
                             <th>🔌 Grid Export (kW)</th>
@@ -153,11 +154,12 @@
                     <tbody>
                         {% for r in readings %}
                         <tr>
-                            <td>{{ r.timestamp|date:"Y-m-d H:i" }}</td>
+                            <td>{{ r.beat_timestamp|date:"Y-m-d H:i:s" }}</td>
+                            <td>{{ r.timestamp|date:"Y-m-d H:i:s" }}</td>
                             <td><strong>{{ r.power_kw }}</strong></td>
                             <td>
                                 <div class="progress" style="height: 20px;">
-                                    <div class="progress-bar" role="progressbar" style="width: {{ r.battery_percentage }}%; background: linear-gradient(90deg, #667eea, #764ba2);" >{{ r.battery_percentage }}%</div>
+                                    <div class="progress-bar" role="progressbar" style="width: {{ r.battery_percentage }}%; background: linear-gradient(90deg, #667eea, #764ba2);">{{ r.battery_percentage }}%</div>
                                 </div>
                             </td>
                             <td>{{ r.grid_export_kw }}</td>

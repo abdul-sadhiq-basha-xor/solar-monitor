@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import sys
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -141,3 +142,16 @@ CELERY_RESULT_BACKEND = 'rpc://'
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+
+
+# settings.py
+CELERY_BEAT_SCHEDULE = {
+    'simulate-every-minute': {
+        'task': 'plants.tasks.simulate_solar_readings',
+        'schedule': crontab(minute='*'),
+        'options': {'queue': 'readings_queue'},
+    },
+}
+
+# use our custom scheduler that injects the scheduled run time into kwargs
+CELERY_BEAT_SCHEDULER = 'solar_monitor.scheduler.TimeInjectingScheduler'

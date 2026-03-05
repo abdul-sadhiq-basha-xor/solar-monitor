@@ -14,16 +14,28 @@ class SolarPlant(models.Model):
     def __str__(self):
         return f"{self.name} ({self.capacity_kw} kW)"
 
-
 class SolarReading(models.Model):
-    plant = models.ForeignKey(SolarPlant, on_delete=models.CASCADE, related_name='readings')
-    timestamp = models.DateTimeField(auto_now_add=True)
+    plant = models.ForeignKey(
+        SolarPlant,
+        on_delete=models.CASCADE,
+        related_name='readings'
+    )
+
+    timestamp = models.DateTimeField()
+    beat_timestamp = models.DateTimeField(null=True, blank=True)  # ← ADD THIS
+
     power_kw = models.FloatField()
     battery_percentage = models.FloatField()
     grid_export_kw = models.FloatField()
 
     class Meta:
-        ordering = ['-timestamp']  # Latest first
+        ordering = ['-timestamp']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['plant', 'timestamp'],
+                name='unique_plant_timestamp'
+            )
+        ]
 
     def __str__(self):
         return f"{self.plant.name} - {self.power_kw} kW"
