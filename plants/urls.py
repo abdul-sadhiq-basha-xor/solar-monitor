@@ -14,4 +14,8 @@ urlpatterns = [
     # demo celery endpoints
     path('tasks/long/', views.start_long_task, name='start_long_task'),
     path('tasks/status/', views.task_status, name='task_status'),
+
+    path('tasks/runner/', views.task_runner, name='task_runner'),
+    path('tasks/trigger/', views.trigger_task, name='trigger_task'),
+    path('tasks/result/', views.fetch_task_result, name='fetch_task_result'),
 ]

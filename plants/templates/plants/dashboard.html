@@ -113,9 +113,11 @@
 
         <!-- Celery Demo Section -->
         <div class="welcome-section" style="background: #fff3cd;">
+            
             <h5>⚡ Test Async Task</h5>
             <p>Try the long-running demo to see Celery in action. Task progress will persist even if you refresh!</p>
             <button id="run-task-btn" class="btn btn-custom">Run Background Task</button>
+            <a href="{% url 'task_runner' %}" class="btn btn-custom">⚙️ Task Runner</a>
             <div id="task-progress-container" class="progress-container">
                 <div class="mb-2" style="font-size: 0.9rem;">
                     <strong>Task Status:</strong> <span id="task-status-text">Starting...</span>

@@ -1,5 +1,4 @@
 import random
-from datetime import datetime
 from celery import shared_task
 from celery import current_task
 from celery.exceptions import Reject
@@ -8,6 +7,10 @@ from .models import SolarPlant, SolarReading, CSVUpload, FailedTask
 import csv
 import json
 from django.db import transaction
+import time  # ← make sure this is at the top
+from datetime import datetime  # ← datetime separately
+import random
+
 
 @shared_task(bind=True, queue='readings_queue')
 def simulate_solar_readings(self, beat_time_iso: str = None):
@@ -260,3 +263,94 @@ def fail_task(self, data):
     print(f"Processing: {data}")
     delivery_info = self.request.delivery_info
     raise Reject("Task rejected to DLQ", requeue=False)
+
+@shared_task(bind=True, queue='readings_queue')
+def demo_success(self):
+    from .models import TaskResult
+    TaskResult.objects.filter(task_id=self.request.id).update(status='STARTED')
+    time.sleep(2)
+    TaskResult.objects.filter(task_id=self.request.id).update(
+        status='SUCCESS',
+        result='Task completed successfully!'
+    )
+    return {'status': 'success', 'message': 'Task completed successfully!'}
+
+
+@shared_task(bind=True, queue='readings_queue')
+def demo_failure(self):
+    from .models import TaskResult
+    TaskResult.objects.filter(task_id=self.request.id).update(status='STARTED')
+    time.sleep(2)
+    TaskResult.objects.filter(task_id=self.request.id).update(
+        status='FAILURE',
+        result='Intentional failure for demo purposes'
+    )
+    raise Exception('Intentional failure for demo purposes')
+
+
+@shared_task(bind=True, queue='readings_queue')
+def demo_pending(self):
+    from .models import TaskResult
+    time.sleep(30)
+    TaskResult.objects.filter(task_id=self.request.id).update(
+        status='SUCCESS',
+        result='Pending task done'
+    )
+    return {'status': 'done'}
+
+
+@shared_task(bind=True, queue='readings_queue')
+def demo_started(self):
+    from .models import TaskResult
+    TaskResult.objects.filter(task_id=self.request.id).update(status='STARTED')
+    time.sleep(10)
+    TaskResult.objects.filter(task_id=self.request.id).update(
+        status='SUCCESS',
+        result='Started task completed'
+    )
+    return {'status': 'success', 'message': 'Started task done'}
+
+
+@shared_task(bind=True, queue='readings_queue', max_retries=3)
+def demo_retry(self):
+    from .models import TaskResult
+    
+    current_attempt = self.request.retries + 1  # 1, 2, 3
+    total_attempts = 3
+
+    # Update DB to show which attempt we're on
+    TaskResult.objects.filter(task_id=self.request.id).update(
+        status='STARTED',
+        result=f'Attempt {current_attempt}/{total_attempts}...'
+    )
+
+    time.sleep(2)  # simulate work
+
+    # Randomly decide success or failure (50/50)
+    will_succeed = random.choice([True, False])
+
+    if will_succeed:
+        # 🎉 Success!
+        TaskResult.objects.filter(task_id=self.request.id).update(
+            status='SUCCESS',
+            result=f'Succeeded on attempt {current_attempt}/{total_attempts}!'
+        )
+        return {'status': 'success', 'attempt': current_attempt}
+
+    else:
+        # ❌ Failed this attempt
+        if current_attempt < total_attempts:
+            # Still have retries left → retry after 3 seconds
+            TaskResult.objects.filter(task_id=self.request.id).update(
+                status='STARTED',
+                result=f'Attempt {current_attempt} failed. Retrying in 3s... ({current_attempt}/{total_attempts})'
+            )
+            raise self.retry(countdown=3)  # retry after 3 seconds
+
+        else:
+            # All retries exhausted → final failure
+            TaskResult.objects.filter(task_id=self.request.id).update(
+                status='FAILURE',
+                result=f'Failed after {total_attempts} attempts.'
+            )
+            raise Exception(f'Failed after {total_attempts} attempts.')

@@ -7,7 +7,10 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 import logging
 import os
 import tempfile
+from .models import TaskResult
 
+
+from .tasks import demo_success, demo_failure, demo_pending, demo_started, demo_retry
 from .tasks import long_running_demo, process_csv_batch
 
 logger = logging.getLogger(__name__)
@@ -239,3 +242,59 @@ def import_progress(request, pk):
         response.update(task_result.info or {})
     
     return JsonResponse(response)
+
+
+@login_required
+def task_runner(request):
+    """Task runner dashboard page."""
+    return render(request, 'plants/task_runner.html')
+
+
+
+@login_required
+def trigger_task(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    task_type = request.POST.get('task_type')
+    task_map = {
+        'success': demo_success,
+        'failure': demo_failure,
+        'pending': demo_pending,
+        'started': demo_started,
+        'retry'  : demo_retry,
+    }
+    task_fn = task_map.get(task_type)
+    if not task_fn:
+        return JsonResponse({'error': 'Invalid task type'}, status=400)
+
+    task = task_fn.delay()
+
+    # ✅ Save to DB immediately as PENDING
+    TaskResult.objects.create(
+        task_id=task.id,
+        task_type=task_type,
+        status='PENDING'
+    )
+
+    return JsonResponse({'task_id': task.id, 'task_type': task_type})
+
+
+@login_required
+def fetch_task_result(request):
+    task_id = request.GET.get('task_id')
+    if not task_id:
+        return JsonResponse({'error': 'missing task_id'}, status=400)
+
+    try:
+        task = TaskResult.objects.get(task_id=task_id)
+        return JsonResponse({
+            'task_id': task.task_id,
+            'task_type': task.task_type,
+            'status': task.status,
+            'result': task.result,
+            'created_at': task.created_at.isoformat(),
+            'updated_at': task.updated_at.isoformat(),
+        })
+    except TaskResult.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)

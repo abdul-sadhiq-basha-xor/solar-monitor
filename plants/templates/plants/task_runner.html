@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Runner - Solar Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .navbar-custom {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        .card-custom {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        }
+        .task-btn {
+            border: none;
+            border-radius: 10px;
+            padding: 16px 24px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+        .task-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+        .btn-success-task { background: linear-gradient(135deg, #11998e, #38ef7d); color: white; }
+        .btn-failure-task { background: linear-gradient(135deg, #eb3349, #f45c43); color: white; }
+        .btn-pending-task { background: linear-gradient(135deg, #f7971e, #ffd200); color: white; }
+        .btn-started-task { background: linear-gradient(135deg, #4776e6, #8e54e9); color: white; }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .badge-SUCCESS { background: #d4edda; color: #155724; }
+        .badge-FAILURE { background: #f8d7da; color: #721c24; }
+        .badge-PENDING { background: #fff3cd; color: #856404; }
+        .badge-STARTED { background: #cce5ff; color: #004085; }
+        .result-row {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .job-id {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #666;
+            word-break: break-all;
+        }
+        .fetch-section {
+            background: #f0f4ff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        h1 { color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-custom mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">☀️ Solar Monitor</span>
+            <a href="{% url 'dashboard' %}" class="text-white text-decoration-none">← Back to Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1 class="mb-4">⚙️ Task Runner</h1>
+        <div class="row">
+
+            <!-- LEFT: Trigger Tasks -->
+            <div class="col-md-5">
+                <div class="card-custom">
+                    <h5 class="fw-bold mb-4">🚀 Trigger a Task</h5>
+                    <button class="task-btn btn-success-task" onclick="triggerTask('success')">✅ Success Task</button>
+                    <button class="task-btn btn-failure-task" onclick="triggerTask('failure')">❌ Failure Task</button>
+                    <button class="task-btn btn-pending-task" onclick="triggerTask('pending')">⏳ Pending Task</button>
+                    <button class="task-btn btn-started-task" onclick="triggerTask('started')">🔄 Started Task</button>
+                    <button class="task-btn btn-retry-task" onclick="triggerTask('retry')">🔁 Retry Task</button>
+                </div>
+
+                <!-- Fetch by Job ID -->
+                <div class="card-custom mt-4">
+                    <h5 class="fw-bold mb-3">🔍 Fetch by Job ID</h5>
+                    <div class="fetch-section">
+                        <input type="text" id="manualJobId" class="form-control mb-2" placeholder="Paste Job ID here...">
+                        <button class="btn btn-primary w-100" onclick="fetchManual()">Fetch Result</button>
+                    </div>
+                    <div id="manualResult" class="mt-3"></div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Results -->
+            <div class="col-md-7">
+                <div class="card-custom">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold mb-0">📋 Task Results</h5>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearResults()">Clear</button>
+                    </div>
+                    <div id="results">
+                        <p class="text-muted text-center py-4">No tasks triggered yet.<br>Click a button to start!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const csrfToken = '{{ csrf_token }}';
+        let tasks = [];
+
+        function triggerTask(type) {
+            fetch("{% url 'trigger_task' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: `task_type=${type}`
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.task_id) {
+                    tasks.unshift({ id: data.task_id, type: data.task_type, status: 'PENDING', result: null });
+                    renderResults();
+                    pollTask(data.task_id);
+                }
+            });
+        }
+
+        function pollTask(taskId) {
+            const interval = setInterval(() => {
+                fetch(`{% url 'fetch_task_result' %}?task_id=${taskId}`)
+                .then(r => r.json())
+                .then(data => {
+                    const task = tasks.find(t => t.id === taskId);
+                    if (task) {
+                        task.status = data.status;
+                        task.result = data.result;
+                        renderResults();
+                        if (['SUCCESS', 'FAILURE'].includes(data.status)) {
+                            clearInterval(interval);
+                        }
+                    }
+                });
+            }, 1500);
+        }
+
+        function fetchManual() {
+            const jobId = document.getElementById('manualJobId').value.trim();
+            if (!jobId) return;
+            fetch(`{% url 'fetch_task_result' %}?task_id=${jobId}`)
+            .then(r => r.json())
+            .then(data => {
+                const div = document.getElementById('manualResult');
+                div.innerHTML = `
+                    <div class="result-row">
+                        <div class="job-id mb-1">${data.task_id}</div>
+                        <span class="status-badge badge-${data.status}">${data.status}</span>
+                        <div class="mt-2 small text-muted">${data.result ? JSON.stringify(data.result) : '—'}</div>
+                    </div>`;
+            });
+        }
+
+        function renderResults() {
+            const container = document.getElementById('results');
+            if (!tasks.length) {
+                container.innerHTML = '<p class="text-muted text-center py-4">No tasks yet.</p>';
+                return;
+            }
+            container.innerHTML = tasks.map(t => `
+                <div class="result-row">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="fw-semibold text-capitalize">${t.type} task</span>
+                            <div class="job-id mt-1" title="${t.id}">${t.id}</div>
+                        </div>
+                        <span class="status-badge badge-${t.status}">${t.status}</span>
+                    </div>
+                    ${t.result ? `<div class="mt-2 small text-muted">${JSON.stringify(t.result)}</div>` : ''}
+                    <button class="btn btn-sm btn-outline-secondary mt-2" onclick="copyId('${t.id}')">📋 Copy ID</button>
+                </div>
+            `).join('');
+        }
+
+        function copyId(id) {
+            navigator.clipboard.writeText(id);
+        }
+
+        function clearResults() {
+            tasks = [];
+            renderResults();
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
