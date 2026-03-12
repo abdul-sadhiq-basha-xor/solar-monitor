@@ -8,6 +8,17 @@ app = Celery('solar_monitor')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
 
+
+@app.on_after_configure.connect
+def setup_signals(sender, **kwargs):
+    """
+    Import Celery signal handlers after Celery is configured.
+
+    This keeps signal registration in one place (`plants.celery_signals`)
+    and avoids import side effects during Django startup.
+    """
+    import plants.celery_signals  # noqa: F401 - register signal handlers
+
 # -----------------------------
 # Exchanges
 # -----------------------------
