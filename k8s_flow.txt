@@ -1,0 +1,10 @@
+Airflow Scheduler
+        |
+        v
+Kubernetes API
+        |
+        v
+   Pod (Task)
+        |
+        v
+   Logs / Result
