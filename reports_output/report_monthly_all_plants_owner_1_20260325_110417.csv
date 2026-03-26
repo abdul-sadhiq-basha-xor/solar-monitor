@@ -1,0 +1,1 @@
+report_id,owner_id,plant_id,plant_name,period,start_at,end_at,reading_timestamp,power_kw,battery_percentage,grid_export_kw

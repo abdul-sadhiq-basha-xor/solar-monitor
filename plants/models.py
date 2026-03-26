@@ -111,3 +111,45 @@ class TaskResult(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class DemoPipelineRun(models.Model):
+    MODE_SUCCESS = "success"
+    MODE_RETRY = "retry"
+    MODE_FAILURE = "failure"
+    MODE_CHOICES = [
+        (MODE_SUCCESS, "Success"),
+        (MODE_RETRY, "Retry"),
+        (MODE_FAILURE, "Failure"),
+    ]
+
+    STATUS_PENDING = "PENDING"
+    STATUS_RUNNING = "RUNNING"
+    STATUS_SUCCESS = "SUCCESS"
+    STATUS_FAILURE = "FAILURE"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILURE, "Failure"),
+    ]
+
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="demo_pipelines")
+    mode = models.CharField(max_length=20, choices=MODE_CHOICES)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    current_step = models.CharField(max_length=50, blank=True, null=True)
+
+    celery_root_task_id = models.CharField(max_length=255, blank=True, null=True)
+
+    error_message = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(blank=True, null=True)
+    finished_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Pipeline {self.id} {self.mode} {self.status}"

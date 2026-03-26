@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import sys
 from celery.schedules import crontab
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,7 +28,14 @@ SECRET_KEY = 'django-insecure-c32!y3fq5_rgulkfq&-z*0_#x@!3z9thw3yj@8^^ya9o_^o#n(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '172.29.14.208',
+    'localhost',
+    '127.0.0.1',
+    # Allow Airflow container to call Django via host.docker.internal:8000
+    'host.docker.internal',
+]
+
 
 
 # Application definition
@@ -43,6 +51,8 @@ INSTALLED_APPS = [
 
     'plants',
     'django_celery_beat',   # if installed
+    'django_celery_results',
+    'reports',
 ]
 
 MIDDLEWARE = [
@@ -84,12 +94,23 @@ WSGI_APPLICATION = 'solar_monitor.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'solar_monitor_db',
+#         'USER': 'solar_user',
+#         'PASSWORD': 'solar123',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'solar_monitor_db',
+        'NAME': 'solar_monitor',
         'USER': 'solar_user',
-        'PASSWORD': 'solar123',
+        'PASSWORD': 'password',
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -113,7 +134,6 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
@@ -145,7 +165,10 @@ LOGOUT_REDIRECT_URL = 'signup'
 
 CELERY_BROKER_URL = 'amqp://guest:guest@localhost:5672//'
 # result backend used for storing state/progress; rpc:// (RabbitMQ) is fine here
-CELERY_RESULT_BACKEND = 'rpc://'
+#CELERY_RESULT_BACKEND = 'rpc://'
+
+CELERY_RESULT_BACKEND = 'django-db'
+
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
@@ -162,3 +185,12 @@ CELERY_BEAT_SCHEDULE = {
 
 # use our custom scheduler that injects the scheduled run time into kwargs
 CELERY_BEAT_SCHEDULER = 'solar_monitor.scheduler.TimeInjectingScheduler'
+
+# ─────────────────────────────────────────────────────────────
+# Airflow integration (Option A)
+# ─────────────────────────────────────────────────────────────
+# Used by Airflow containers to call Django and request report generation.
+AIRFLOW_REPORTS_TOKEN = os.getenv("AIRFLOW_REPORTS_TOKEN", "dev-airflow-token")
+
+# Where generated report files are written on the host filesystem.
+REPORTS_OUTPUT_DIR = os.getenv("REPORTS_OUTPUT_DIR", str(BASE_DIR / "reports_output"))

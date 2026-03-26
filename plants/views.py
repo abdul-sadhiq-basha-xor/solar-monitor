@@ -4,6 +4,8 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.http import JsonResponse
 from celery.result import AsyncResult
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST
 import logging
 import os
 import tempfile
@@ -12,6 +14,7 @@ from .models import TaskResult
 
 from .tasks import demo_success, demo_failure, demo_pending, demo_started, demo_retry
 from .tasks import long_running_demo, process_csv_batch
+from .pipeline_tasks import kickoff_demo_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -298,3 +301,128 @@ def fetch_task_result(request):
         })
     except TaskResult.DoesNotExist:
         return JsonResponse({'error': 'Task not found'}, status=404)
+
+
+@login_required
+def demo_pipeline_page(request):
+    """
+    Simple learning page to run a Celery chain (DAG-like 1->2->3).
+    """
+    from .models import DemoPipelineRun
+
+    if request.user.is_staff:
+        runs = DemoPipelineRun.objects.select_related("owner").all()[:50]
+    else:
+        runs = DemoPipelineRun.objects.select_related("owner").filter(owner=request.user)[:50]
+
+    return render(request, "plants/demo_pipeline.html", {"runs": runs})
+
+
+@login_required
+def trigger_demo_pipeline(request):
+    from .models import DemoPipelineRun
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    mode = (request.POST.get("mode") or DemoPipelineRun.MODE_SUCCESS).strip().lower()
+    if mode not in {DemoPipelineRun.MODE_SUCCESS, DemoPipelineRun.MODE_RETRY, DemoPipelineRun.MODE_FAILURE}:
+        return JsonResponse({"error": "invalid mode"}, status=400)
+
+    run = DemoPipelineRun.objects.create(owner=request.user, mode=mode, status=DemoPipelineRun.STATUS_PENDING)
+    async_result = kickoff_demo_pipeline(pipeline_id=run.id, mode=mode)
+    DemoPipelineRun.objects.filter(id=run.id).update(celery_root_task_id=async_result.id)
+
+    return JsonResponse({"ok": True, "pipeline_id": run.id, "root_task_id": async_result.id})
+
+
+@login_required
+def demo_pipeline_status(request, pipeline_id: int):
+    from .models import DemoPipelineRun
+
+    run = get_object_or_404(DemoPipelineRun, id=pipeline_id)
+    if not request.user.is_staff and run.owner_id != request.user.id:
+        return JsonResponse({"error": "not found"}, status=404)
+
+    return JsonResponse(
+        {
+            "id": run.id,
+            "mode": run.mode,
+            "status": run.status,
+            "current_step": run.current_step,
+            "error_message": run.error_message,
+            "root_task_id": run.celery_root_task_id,
+            "created_at": run.created_at.isoformat(),
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        }
+    )
+
+
+def _airflow_token_ok(request) -> bool:
+    from django.conf import settings
+
+    expected = getattr(settings, "AIRFLOW_REPORTS_TOKEN", None)
+    token = request.headers.get("X-Airflow-Token") or request.headers.get("x-airflow-token")
+    return bool(expected and token and token == expected)
+
+
+@csrf_exempt
+@require_POST
+def airflow_start_demo_pipeline(request):
+    """
+    Airflow -> Django: starts a Celery 1->2->3->4 demo pipeline and returns IDs.
+    """
+    if not _airflow_token_ok(request):
+        return JsonResponse({"ok": False, "error": "unauthorized"}, status=401)
+
+    import json
+    from django.contrib.auth import get_user_model
+    from .models import DemoPipelineRun
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+
+    owner_id = int(payload.get("owner_id", 1))
+    mode = (payload.get("mode") or DemoPipelineRun.MODE_SUCCESS).strip().lower()
+    if mode not in {DemoPipelineRun.MODE_SUCCESS, DemoPipelineRun.MODE_RETRY, DemoPipelineRun.MODE_FAILURE}:
+        return JsonResponse({"ok": False, "error": "invalid mode"}, status=400)
+
+    User = get_user_model()
+    owner = User.objects.get(id=owner_id)
+
+    run = DemoPipelineRun.objects.create(owner=owner, mode=mode, status=DemoPipelineRun.STATUS_PENDING)
+    async_result = kickoff_demo_pipeline(pipeline_id=run.id, mode=mode)
+    DemoPipelineRun.objects.filter(id=run.id).update(celery_root_task_id=async_result.id)
+
+    return JsonResponse({"ok": True, "pipeline_id": run.id, "root_task_id": async_result.id})
+
+
+@csrf_exempt
+@require_GET
+def airflow_demo_pipeline_status(request, pipeline_id: int):
+    """
+    Airflow -> Django: polls pipeline status.
+    """
+    if not _airflow_token_ok(request):
+        return JsonResponse({"ok": False, "error": "unauthorized"}, status=401)
+
+    from .models import DemoPipelineRun
+
+    run = get_object_or_404(DemoPipelineRun, id=pipeline_id)
+    return JsonResponse(
+        {
+            "ok": True,
+            "id": run.id,
+            "mode": run.mode,
+            "status": run.status,
+            "current_step": run.current_step,
+            "error_message": run.error_message,
+            "root_task_id": run.celery_root_task_id,
+            "created_at": run.created_at.isoformat(),
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        }
+    )

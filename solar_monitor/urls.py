@@ -22,6 +22,7 @@ from plants import views as plant_views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('plants.urls')),
+    path('', include('reports.urls')),
     path('', include('django_prometheus.urls')),   # ← no prefix
 
     path('accounts/login/', auth_views.LoginView.as_view(), name='login'),

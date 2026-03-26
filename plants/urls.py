@@ -18,4 +18,13 @@ urlpatterns = [
     path('tasks/runner/', views.task_runner, name='task_runner'),
     path('tasks/trigger/', views.trigger_task, name='trigger_task'),
     path('tasks/result/', views.fetch_task_result, name='fetch_task_result'),
+
+    # Celery DAG-style demo pipeline
+    path('pipelines/demo/', views.demo_pipeline_page, name='demo_pipeline_page'),
+    path('pipelines/demo/trigger/', views.trigger_demo_pipeline, name='trigger_demo_pipeline'),
+    path('pipelines/demo/<int:pipeline_id>/status/', views.demo_pipeline_status, name='demo_pipeline_status'),
+
+    # Airflow token-protected endpoints (Option A tracking)
+    path('api/airflow/pipelines/demo/start/', views.airflow_start_demo_pipeline, name='airflow_start_demo_pipeline'),
+    path('api/airflow/pipelines/demo/<int:pipeline_id>/status/', views.airflow_demo_pipeline_status, name='airflow_demo_pipeline_status'),
 ]
