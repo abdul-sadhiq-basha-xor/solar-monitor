@@ -426,3 +426,14 @@ def airflow_demo_pipeline_status(request, pipeline_id: int):
             "finished_at": run.finished_at.isoformat() if run.finished_at else None,
         }
     )
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+@require_GET
+def airflow_health(request):
+    token = request.headers.get("X-Airflow-Token", "")
+    expected = os.environ.get("AIRFLOW_REPORTS_TOKEN", "")
+    if expected and token != expected:
+        return JsonResponse({"ok": False, "error": "unauthorized"}, status=401)
+    return JsonResponse({"ok": True})

@@ -27,4 +27,5 @@ urlpatterns = [
     # Airflow token-protected endpoints (Option A tracking)
     path('api/airflow/pipelines/demo/start/', views.airflow_start_demo_pipeline, name='airflow_start_demo_pipeline'),
     path('api/airflow/pipelines/demo/<int:pipeline_id>/status/', views.airflow_demo_pipeline_status, name='airflow_demo_pipeline_status'),
+    path("api/airflow/health/", views.airflow_health, name="airflow_health"),
 ]
