@@ -25,27 +25,29 @@ data:
             namespace="airflow",
             image="solar-monitor-airflow:latest",
             image_pull_policy="Never",
-            cmds=["python"],
+            cmds=["python", "-c"],
             arguments=[
-                "-c",
-                """
-                import django, os
-                os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'solar_monitor.settings')
-                django.setup()
-                from plants.tasks import k8s_simulate_solar_readings
-                count = k8s_simulate_solar_readings()
-                print(f'[K8s] Done — {count} readings written')
-                """
+                "import django, os\n"
+                "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'solar_monitor.settings')\n"
+                "django.setup()\n"
+                "from plants.tasks import k8s_simulate_solar_readings\n"
+                "count = k8s_simulate_solar_readings()\n"
+                "print(f'[K8s] Done - {count} readings written')\n"
             ],
             env_vars=[
                 k8s.V1EnvVar(name="DJANGO_SETTINGS_MODULE", value="solar_monitor.settings"),
-                k8s.V1EnvVar(name="PYTHONPATH",              value="/opt/airflow/solar_monitor"),
+                k8s.V1EnvVar(name="PYTHONPATH",             value="/opt/airflow/solar_monitor"),
+                k8s.V1EnvVar(name="DB_HOST",                value="postgres.airflow.svc.cluster.local"),
+                k8s.V1EnvVar(name="DB_NAME",                value="solar_monitor"),
+                k8s.V1EnvVar(name="DB_USER",                value="solar_user"),
+                k8s.V1EnvVar(name="DB_PASSWORD",            value="password"),
+                k8s.V1EnvVar(name="DB_PORT",                value="5432"),
             ],
             container_resources=k8s.V1ResourceRequirements(
                 requests={"cpu": "100m", "memory": "256Mi"},
-                limits={"cpu": "500m",   "memory": "512Mi"},
+                limits={"cpu": "500m", "memory": "512Mi"},
             ),
-            is_delete_operator_pod=True,
+            is_delete_operator_pod=False,
             get_logs=True,
             do_xcom_push=False,
         )

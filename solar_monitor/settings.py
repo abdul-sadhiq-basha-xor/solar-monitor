@@ -108,11 +108,11 @@ WSGI_APPLICATION = 'solar_monitor.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'solar_monitor',
-        'USER': 'solar_user',
-        'PASSWORD': 'password',
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'NAME': os.getenv('DB_NAME', 'solar_monitor'),
+        'USER': os.getenv('DB_USER', 'solar_user'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'password'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),  # ✅ localhost for normal run, overridden in K8s pod
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 

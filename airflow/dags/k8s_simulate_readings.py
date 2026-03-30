@@ -34,6 +34,8 @@ print(f'[K8s] Done — {count} readings written')
     env_vars=[
         k8s.V1EnvVar(name="DJANGO_SETTINGS_MODULE", value="solar_monitor.settings"),
         k8s.V1EnvVar(name="PYTHONPATH", value="/opt/airflow/solar_monitor"),
+        k8s.V1EnvVar(name="DB_HOST", value="postgres.airflow.svc.cluster.local"),
+
     ],
     container_resources=k8s.V1ResourceRequirements(
         requests={"cpu": "100m", "memory": "256Mi"},
