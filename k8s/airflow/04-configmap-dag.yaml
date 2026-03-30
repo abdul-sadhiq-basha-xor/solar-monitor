@@ -47,7 +47,151 @@ data:
                 requests={"cpu": "100m", "memory": "256Mi"},
                 limits={"cpu": "500m", "memory": "512Mi"},
             ),
-            is_delete_operator_pod=False,
+            is_delete_operator_pod=True,
             get_logs=True,
             do_xcom_push=False,
         )
+
+  solar_scheduled_reports.py: |
+    import os
+    import requests
+    from airflow import DAG
+    from airflow.operators.python import PythonOperator
+    from airflow.utils.dates import days_ago
+
+    def _django_generate_reports(period: str):
+        base_url = os.environ.get("DJANGO_BASE_URL", "http://host.docker.internal:8000").rstrip("/")
+        token = os.environ.get("AIRFLOW_REPORTS_TOKEN", "")
+        owner_id = int(os.environ.get("REPORT_OWNER_ID", "1"))
+        url = f"{base_url}/api/airflow/reports/generate/"
+        resp = requests.post(
+            url,
+            headers={"X-Airflow-Token": token},
+            json={
+                "owner_id": owner_id,
+                "period": period,
+                "plant_id": None,
+                "airflow_dag_id": f"scheduled_{period.lower()}_reports",
+                "airflow_run_id": os.environ.get("AIRFLOW_CTX_DAG_RUN_ID"),
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("ok"):
+            raise RuntimeError(f"Django report generation failed: {data}")
+
+    default_args = {"owner": "airflow", "retries": 1}
+
+    with DAG(
+        dag_id="scheduled_daily_reports",
+        default_args=default_args,
+        description="Generate daily CSV reports via Django API",
+        schedule_interval="0 1 * * *",
+        start_date=days_ago(1),
+        catchup=False,
+        tags=["reports"],
+    ) as dag_daily:
+        PythonOperator(
+            task_id="generate_daily_reports",
+            python_callable=_django_generate_reports,
+            op_kwargs={"period": "DAILY"},
+        )
+
+    with DAG(
+        dag_id="scheduled_weekly_reports",
+        default_args=default_args,
+        description="Generate weekly CSV reports via Django API",
+        schedule_interval="0 2 * * 1",
+        start_date=days_ago(1),
+        catchup=False,
+        tags=["reports"],
+    ) as dag_weekly:
+        PythonOperator(
+            task_id="generate_weekly_reports",
+            python_callable=_django_generate_reports,
+            op_kwargs={"period": "WEEKLY"},
+        )
+
+    with DAG(
+        dag_id="scheduled_monthly_reports",
+        default_args=default_args,
+        description="Generate monthly CSV reports via Django API",
+        schedule_interval="0 3 1 * *",
+        start_date=days_ago(1),
+        catchup=False,
+        tags=["reports"],
+    ) as dag_monthly:
+        PythonOperator(
+            task_id="generate_monthly_reports",
+            python_callable=_django_generate_reports,
+            op_kwargs={"period": "MONTHLY"},
+        )
+
+  solar_demo_pipeline_tracking.py: |
+    import os
+    import time
+    import requests
+    from airflow import DAG
+    from airflow.operators.python import PythonOperator
+    from airflow.utils.dates import days_ago
+
+    def _start_pipeline(**context):
+        base_url = os.environ.get("DJANGO_BASE_URL", "http://host.docker.internal:8000").rstrip("/")
+        token = os.environ.get("AIRFLOW_REPORTS_TOKEN", "")
+        owner_id = int(os.environ.get("PIPELINE_OWNER_ID", "1"))
+        mode = os.environ.get("PIPELINE_MODE", "success")
+        resp = requests.post(
+            f"{base_url}/api/airflow/pipelines/demo/start/",
+            headers={"X-Airflow-Token": token},
+            json={"owner_id": owner_id, "mode": mode},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("ok"):
+            raise RuntimeError(f"Failed to start pipeline: {data}")
+        context["ti"].xcom_push(key="pipeline_id", value=data["pipeline_id"])
+        context["ti"].xcom_push(key="root_task_id", value=data.get("root_task_id"))
+
+    def _wait_for_pipeline(**context):
+        base_url = os.environ.get("DJANGO_BASE_URL", "http://host.docker.internal:8000").rstrip("/")
+        token = os.environ.get("AIRFLOW_REPORTS_TOKEN", "")
+        pipeline_id = context["ti"].xcom_pull(key="pipeline_id", task_ids="start_demo_pipeline")
+        if not pipeline_id:
+            raise RuntimeError("Missing pipeline_id from XCom")
+        timeout_s = int(os.environ.get("PIPELINE_POLL_TIMEOUT_S", "120"))
+        interval_s = int(os.environ.get("PIPELINE_POLL_INTERVAL_S", "2"))
+        deadline = time.time() + timeout_s
+        last = None
+        while time.time() < deadline:
+            resp = requests.get(
+                f"{base_url}/api/airflow/pipelines/demo/{pipeline_id}/status/",
+                headers={"X-Airflow-Token": token},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            last = data
+            status = data.get("status")
+            if status == "SUCCESS":
+                return
+            if status == "FAILURE":
+                raise RuntimeError(f"Pipeline failed: {data.get('error_message')}")
+            time.sleep(interval_s)
+        raise RuntimeError(f"Pipeline polling timed out. Last status: {last}")
+
+    default_args = {"owner": "airflow", "retries": 0}
+
+    with DAG(
+        dag_id="track_celery_demo_pipeline",
+        default_args=default_args,
+        description="Trigger a Celery 1->2->3->4 chain and track via Django status API",
+        schedule_interval=None,
+        start_date=days_ago(1),
+        catchup=False,
+        tags=["celery", "pipelines", "learning"],
+    ) as dag:
+        start = PythonOperator(task_id="start_demo_pipeline", python_callable=_start_pipeline, provide_context=True)
+        wait = PythonOperator(task_id="wait_for_completion", python_callable=_wait_for_pipeline, provide_context=True)
+        start >> wait
