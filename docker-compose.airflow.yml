@@ -36,9 +36,9 @@ services:
     command: >
       bash -c "airflow db upgrade && airflow users create --username $$_AIRFLOW_WWW_USER_USERNAME --password $$_AIRFLOW_WWW_USER_PASSWORD --firstname $$_AIRFLOW_WWW_USER_FIRSTNAME --lastname $$_AIRFLOW_WWW_USER_LASTNAME --role Admin --email $$_AIRFLOW_WWW_USER_EMAIL || true"
 
- 
   airflow-webserver:
-    image: apache/airflow:2.9.3-python3.11
+    build: .
+  
     depends_on:
       airflow-db:
         condition: service_healthy
@@ -47,47 +47,51 @@ services:
     ports:
       - "8081:8080"
     environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor   # Can switch to KubernetesExecutor later
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
-      # ✅ ADD THESE THREE
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-change-me-use-a-real-secret}
       AIRFLOW__CORE__HOSTNAME_CALLABLE: socket:getfqdn
       AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-      # DAG env
       DJANGO_BASE_URL: http://host.docker.internal:8000
       AIRFLOW_REPORTS_TOKEN: ${AIRFLOW_REPORTS_TOKEN:-dev-airflow-token}
+      KUBECONFIG: /home/airflow/.kube/config
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
-    command: webserver
+      - ./airflow/requirements.txt:/requirements.txt
+      - ~/.kube/config-docker:/home/airflow/.kube/config:ro
+    command: bash -c "pip install -r /requirements.txt && airflow webserver"
+  
 
   airflow-scheduler:
-    image: apache/airflow:2.9.3-python3.11
+    build: .
     depends_on:
       airflow-db:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
     environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor   # Or KubernetesExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      # ✅ ADD THESE THREE (same values as webserver)
       AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-change-me-use-a-real-secret}
       AIRFLOW__CORE__HOSTNAME_CALLABLE: socket:getfqdn
       AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-      # DAG env
       DJANGO_BASE_URL: http://host.docker.internal:8000
       AIRFLOW_REPORTS_TOKEN: ${AIRFLOW_REPORTS_TOKEN:-dev-airflow-token}
+      KUBECONFIG: /home/airflow/.kube/config
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
-    command: scheduler
+      - ./airflow/requirements.txt:/requirements.txt
+      - ~/.kube/config-docker:/home/airflow/.kube/config:ro
+    command: bash -c "pip install -r /requirements.txt && airflow scheduler"
+   
+      - kind
 
 volumes:
   airflow_db:
-

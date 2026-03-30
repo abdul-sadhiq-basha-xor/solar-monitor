@@ -46,6 +46,43 @@ def simulate_solar_readings(self, beat_time_iso: str = None):
     return f"Simulation completed for beat={beat_time.isoformat()}"
 
 
+def k8s_simulate_solar_readings():
+    """
+    Standalone function for Kubernetes pod execution.
+    No Celery dependency — called directly by KubernetesPodOperator.
+    Uses timezone.now() as the execution time.
+    """
+    from plants.models import SolarPlant, SolarReading
+    from django.utils import timezone
+    import random
+
+    beat_time = timezone.now()
+
+    plants = SolarPlant.objects.all()
+    count = 0
+    for plant in plants:
+        current_hour = timezone.localtime(beat_time).hour
+        power_output = (
+            random.uniform(plant.capacity_kw * 0.3, plant.capacity_kw * 1.0)
+            if 6 <= current_hour <= 18 else 0.0
+        )
+        battery_percentage = random.uniform(20, 100)
+        grid_export = max(0, power_output - (plant.capacity_kw * 0.5))
+
+        SolarReading.objects.create(
+            plant=plant,
+            timestamp=beat_time,
+            beat_timestamp=beat_time,
+            power_kw=round(power_output, 2),
+            battery_percentage=round(battery_percentage, 2),
+            grid_export_kw=round(grid_export, 2),
+        )
+        count += 1
+
+    print(f"[K8s] Simulation completed — {count} readings written at {beat_time.isoformat()}")
+    return count
+
+
 @shared_task(bind=True,queue='long_tasks')
 def long_running_demo(self, duration=10):
     """Simulate a long task by sleeping, reporting progress.

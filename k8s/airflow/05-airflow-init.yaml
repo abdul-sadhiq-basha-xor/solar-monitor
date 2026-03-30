@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: airflow-init
+  namespace: airflow
+spec:
+  template:
+    spec:
+      serviceAccountName: airflow
+      restartPolicy: OnFailure
+      containers:
+        - name: airflow-init
+          image: solar-monitor-airflow:latest
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef:
+                name: airflow-env
+          command:
+            - bash
+            - -c
+            - |
+              airflow db migrate && \
+              airflow users create \
+                --username admin \
+                --password admin \
+                --firstname admin \
+                --lastname user \
+                --role Admin \
+                --email admin@gmail.com || true
