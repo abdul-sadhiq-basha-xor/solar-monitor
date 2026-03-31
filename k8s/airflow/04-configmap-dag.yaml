@@ -60,7 +60,7 @@ data:
     from airflow.utils.dates import days_ago
 
     def _django_generate_reports(period: str):
-        base_url = os.environ.get("DJANGO_BASE_URL", "http://host.docker.internal:8000").rstrip("/")
+        base_url = os.environ.get("DJANGO_BASE_URL", "http://172.20.0.2:8000").rstrip("/")
         token = os.environ.get("AIRFLOW_REPORTS_TOKEN", "")
         owner_id = int(os.environ.get("REPORT_OWNER_ID", "1"))
         url = f"{base_url}/api/airflow/reports/generate/"
@@ -137,7 +137,7 @@ data:
     from airflow.utils.dates import days_ago
 
     def _start_pipeline(**context):
-        base_url = os.environ.get("DJANGO_BASE_URL", "http://host.docker.internal:8000").rstrip("/")
+        base_url = os.environ.get("DJANGO_BASE_URL", "http://172.20.0.2:8000").rstrip("/")
         token = os.environ.get("AIRFLOW_REPORTS_TOKEN", "")
         owner_id = int(os.environ.get("PIPELINE_OWNER_ID", "1"))
         mode = os.environ.get("PIPELINE_MODE", "success")
@@ -155,7 +155,7 @@ data:
         context["ti"].xcom_push(key="root_task_id", value=data.get("root_task_id"))
 
     def _wait_for_pipeline(**context):
-        base_url = os.environ.get("DJANGO_BASE_URL", "http://host.docker.internal:8000").rstrip("/")
+        base_url = os.environ.get("DJANGO_BASE_URL", "http://172.20.0.2:8000").rstrip("/")
         token = os.environ.get("AIRFLOW_REPORTS_TOKEN", "")
         pipeline_id = context["ti"].xcom_pull(key="pipeline_id", task_ids="start_demo_pipeline")
         if not pipeline_id:

@@ -11,8 +11,6 @@ data:
   AIRFLOW__WEBSERVER__SECRET_KEY: "your-static-secret-key-here"
   AIRFLOW__CORE__HOSTNAME_CALLABLE: socket:getfqdn
   AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-  DJANGO_BASE_URL: "http://host.docker.internal:8000"
+  DJANGO_BASE_URL: "http://172.20.0.2:8000"  # ← replace with your actual IP
   AIRFLOW_REPORTS_TOKEN: "dev-airflow-token"
   AIRFLOW__CORE__DAG_DISCOVERY_SAFE_MODE: "false"
-  DJANGO_BASE_URL: "http://host.docker.internal:8000"
-  AIRFLOW_REPORTS_TOKEN: "dev-airflow-token"
